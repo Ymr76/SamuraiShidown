@@ -13,10 +13,16 @@ public class Enemy : MonoBehaviour
     [Header("AI Settings")]
     public Transform player;
     public float awareRange = 8f;   
-    public float attackRange = 1.5f; 
+    public float attackRange = 1.2f; 
     public float moveSpeed = 3f;
     public float attackCooldown = 2f;
     private float lastAttackTime;
+
+    [Header("Hit Detection")]
+    [Tooltip("Max horizontal distance (center to center) at which a swing can actually connect.")]
+    public float hitRange = 1.4f;
+    [Tooltip("Max vertical distance at which a swing can connect.")]
+    public float verticalHitRange = 2.5f;
 
     [Header("UI")]
     public Transform uiCanvas; // NEW: We need to grab the canvas to stop it from flipping!
@@ -56,6 +62,13 @@ public class Enemy : MonoBehaviour
     void Update()
     {
         UpdateUI();
+
+        // Drive the walking animation from the enemy's horizontal speed.
+        if (anim != null && rb != null)
+        {
+            float animSpeed = isDead ? 0f : Mathf.Abs(rb.linearVelocity.x);
+            anim.SetFloat("Speed", animSpeed);
+        }
 
         if (currentState == EnemyState.Stunned || currentHealth <= 0) return;
 
@@ -135,6 +148,28 @@ public class Enemy : MonoBehaviour
 
     public void ExecuteHit()
     {
+        if (player == null || playerScript == null) return;
+
+        // Validate the player is actually within striking range AT THE MOMENT OF IMPACT.
+        // The attack animation event can fire after the player has backed away, so without
+        // this check the enemy would land hits from far away.
+        float horizontalDist = Mathf.Abs(player.position.x - transform.position.x);
+        float verticalDist = Mathf.Abs(player.position.y - transform.position.y);
+        if (horizontalDist > hitRange || verticalDist > verticalHitRange)
+        {
+            Debug.Log("Enemy swing whiffed (player out of range).");
+            return;
+        }
+
+        // Only connect if the enemy is facing the player (no hitting behind the back).
+        float dirToPlayer = Mathf.Sign(player.position.x - transform.position.x);
+        float facing = Mathf.Sign(transform.localScale.x);
+        if (dirToPlayer != facing)
+        {
+            Debug.Log("Enemy swing whiffed (not facing player).");
+            return;
+        }
+
         if (playerScript.isParrying)
         {
             Debug.Log("Enemy was parried!");
@@ -182,7 +217,6 @@ public class Enemy : MonoBehaviour
         currentState = EnemyState.Stunned; 
         GetComponent<Collider2D>().enabled = false;
         if(hpText != null) hpText.text = "DEAD";
-        this.enabled = false;
 
         // Free our queue slot so the next enemy can advance and attack.
         if (EnemyManager.Instance != null) EnemyManager.Instance.Unregister(this);
@@ -191,6 +225,32 @@ public class Enemy : MonoBehaviour
         {
             GameManager.Instance.AddScore(10);
         }
+
+        StartCoroutine(DespawnRoutine());
+    }
+
+    System.Collections.IEnumerator DespawnRoutine()
+    {
+        // Keep dead enemy visible for 1.5 seconds
+        yield return new WaitForSeconds(1.5f);
+
+        SpriteRenderer sr = GetComponent<SpriteRenderer>();
+        if (sr != null)
+        {
+            float duration = 1.0f;
+            float elapsed = 0f;
+            Color startColor = sr.color;
+
+            while (elapsed < duration)
+            {
+                elapsed += Time.deltaTime;
+                float pct = elapsed / duration;
+                sr.color = new Color(startColor.r, startColor.g, startColor.b, Mathf.Lerp(startColor.a, 0f, pct));
+                yield return null;
+            }
+        }
+
+        Destroy(gameObject);
     }
 
     void UpdateUI()

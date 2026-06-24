@@ -48,6 +48,7 @@ public class GameManager : MonoBehaviour
     [Header("Settings Elements")]
     public Slider volumeSlider;
     public Toggle fullscreenToggle;
+    public Toggle hitboxDebugToggle;
 
     [Header("Gameplay References")]
     public PlayerMovement player;
@@ -90,6 +91,12 @@ public class GameManager : MonoBehaviour
         {
             fullscreenToggle.isOn = Screen.fullScreen;
             fullscreenToggle.onValueChanged.AddListener(SetFullscreen);
+        }
+
+        if (hitboxDebugToggle != null)
+        {
+            hitboxDebugToggle.isOn = DebugHitboxOverlay.Enabled;
+            hitboxDebugToggle.onValueChanged.AddListener(SetHitboxDebug);
         }
 
         SetState(bootState);
@@ -236,5 +243,10 @@ public class GameManager : MonoBehaviour
     public void SetFullscreen(bool isFullscreen)
     {
         Screen.fullScreen = isFullscreen;
+    }
+
+    public void SetHitboxDebug(bool show)
+    {
+        DebugHitboxOverlay.Enabled = show;
     }
 }
